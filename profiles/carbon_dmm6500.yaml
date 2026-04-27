@@ -1,0 +1,126 @@
+# Profile for the CARBON DMM6500 virtual digital multimeter.
+apiVersion: v1alpha1
+
+identity:
+  manufacturer: "CARBON"
+  model: "DMM6500"
+
+metadata:
+  description: "Carbon DMM6500 6.5-digit virtual digital multimeter."
+  io:
+    - type: "banana"
+      direction: "input"
+      count: 2
+      description: "Voltage/resistance input terminals (HI/LO)"
+    - type: "banana"
+      direction: "input"
+      count: 2
+      description: "Current input terminals (HI/LO)"
+
+connection:
+  terminator: "\n"
+  delimiter: ","
+  separator: ";"
+  bus:
+    - type: "lan"
+      defaultPort: 5026
+      timeout: 5000
+
+variables:
+  function:
+    description: "Measurement function"
+    type: "enum"
+    options:
+      - value: "VOLT"
+        description: "DC Voltage"
+      - value: "CURR"
+        description: "DC Current"
+      - value: "RES"
+        description: "Resistance"
+      - value: "FREQ"
+        description: "Frequency"
+    default: "VOLT"
+  nplc:
+    description: "Integration time in power line cycles"
+    type: "float"
+    range: { min: 0.02, max: 100 }
+    default: 10
+  impedance_auto:
+    description: "Automatic input impedance selection"
+    type: "bool"
+    default: true
+
+commands:
+  # --- Configuration ---
+  set_function:
+    type: "write"
+    group: "Configure"
+    description: "Set measurement function."
+    command: "CONF:{function}"
+
+  get_function:
+    type: "read"
+    group: "Configure"
+    description: "Query active measurement function."
+    command: "FUNC?"
+    response:
+      type: "enum"
+
+  # --- Measurement ---
+  read:
+    type: "read"
+    group: "Measure"
+    description: "Take a measurement with the active function."
+    command: "READ?"
+    response:
+      type: "float"
+      unit: "V"
+
+  # --- Sense ---
+  set_nplc:
+    type: "write"
+    group: "Sense"
+    description: "Set integration time (NPLC)."
+    command: "SENS:VOLT:DC:NPLC {nplc}"
+
+  get_nplc:
+    type: "read"
+    group: "Sense"
+    description: "Query integration time (NPLC)."
+    command: "SENS:VOLT:DC:NPLC?"
+    response:
+      type: "float"
+
+  set_impedance_auto:
+    type: "write"
+    group: "Sense"
+    description: "Enable or disable automatic input impedance."
+    command: "INP:IMP:AUTO {impedance_auto}"
+
+  get_impedance_auto:
+    type: "read"
+    group: "Sense"
+    description: "Query automatic input impedance state."
+    command: "INP:IMP:AUTO?"
+    response:
+      type: "bool"
+
+  # --- System ---
+  reset:
+    type: "write"
+    description: "Reset to power-on defaults."
+    command: "*RST"
+
+  error_query:
+    type: "read"
+    description: "Read error from SCPI queue."
+    command: "SYST:ERR?"
+    response:
+      type: "tuple"
+      fields:
+        - name: "code"
+          type: "int"
+          description: "Error code"
+        - name: "message"
+          type: "enum"
+          description: "Error description"

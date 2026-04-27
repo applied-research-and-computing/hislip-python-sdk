@@ -1,0 +1,221 @@
+# Profile for the CARBON SG3300 virtual signal generator.
+apiVersion: v1alpha1
+
+identity:
+  manufacturer: "CARBON"
+  model: "SG3300"
+
+metadata:
+  description: "Carbon SG3300 virtual function/signal generator."
+  io:
+    - type: "bnc"
+      direction: "output"
+      count: 1
+      description: "Main signal output"
+    - type: "bnc"
+      direction: "output"
+      count: 1
+      description: "Sync output"
+
+connection:
+  terminator: "\n"
+  delimiter: ","
+  separator: ";"
+  bus:
+    - type: "lan"
+      defaultPort: 5028
+      timeout: 5000
+
+variables:
+  frequency:
+    description: "Output frequency"
+    type: "float"
+    range: { min: 0.001, max: 30000000 }
+    default: 1000
+  amplitude:
+    description: "Output amplitude (peak-to-peak)"
+    type: "float"
+    range: { min: 0.001, max: 10 }
+    default: 1
+  offset:
+    description: "DC offset voltage"
+    type: "float"
+    range: { min: -5, max: 5 }
+    default: 0
+  waveform:
+    description: "Output waveform shape"
+    type: "enum"
+    options:
+      - value: "SIN"
+        description: "Sine wave"
+      - value: "SQU"
+        description: "Square wave"
+      - value: "RAMP"
+        description: "Ramp/triangle wave"
+      - value: "PULS"
+        description: "Pulse"
+      - value: "NOIS"
+        description: "Noise"
+      - value: "DC"
+        description: "DC level"
+    default: "SIN"
+  output_state:
+    description: "Signal output state"
+    type: "bool"
+    default: false
+  burst_state:
+    description: "Burst mode state"
+    type: "bool"
+    default: false
+  burst_count:
+    description: "Burst cycle count"
+    type: "int"
+    range: { min: 1, max: 1000000 }
+    default: 1
+  sweep_state:
+    description: "Sweep mode state"
+    type: "bool"
+    default: false
+
+commands:
+  # --- Frequency ---
+  set_frequency:
+    type: "write"
+    group: "Source"
+    description: "Set output frequency."
+    command: "SOUR:FREQ {frequency}"
+
+  get_frequency:
+    type: "read"
+    group: "Source"
+    description: "Query output frequency."
+    command: "SOUR:FREQ?"
+    response:
+      type: "float"
+      unit: "Hz"
+
+  # --- Amplitude ---
+  set_amplitude:
+    type: "write"
+    group: "Source"
+    description: "Set output amplitude."
+    command: "SOUR:VOLT {amplitude}"
+
+  get_amplitude:
+    type: "read"
+    group: "Source"
+    description: "Query output amplitude."
+    command: "SOUR:VOLT?"
+    response:
+      type: "float"
+      unit: "Vpp"
+
+  # --- Offset ---
+  set_offset:
+    type: "write"
+    group: "Source"
+    description: "Set DC offset voltage."
+    command: "SOUR:VOLT:OFFS {offset}"
+
+  get_offset:
+    type: "read"
+    group: "Source"
+    description: "Query DC offset."
+    command: "SOUR:VOLT:OFFS?"
+    response:
+      type: "float"
+      unit: "V"
+
+  # --- Waveform ---
+  set_waveform:
+    type: "write"
+    group: "Waveform"
+    description: "Set output waveform shape."
+    command: "SOUR:FUNC {waveform}"
+
+  get_waveform:
+    type: "read"
+    group: "Waveform"
+    description: "Query output waveform shape."
+    command: "SOUR:FUNC?"
+    response:
+      type: "enum"
+
+  # --- Output ---
+  set_output:
+    type: "write"
+    group: "Output"
+    description: "Enable or disable signal output."
+    command: "OUTP {output_state}"
+
+  get_output:
+    type: "read"
+    group: "Output"
+    description: "Query output state."
+    command: "OUTP?"
+    response:
+      type: "bool"
+
+  # --- Burst ---
+  set_burst_state:
+    type: "write"
+    group: "Burst"
+    description: "Enable or disable burst mode."
+    command: "SOUR:BURS:STAT {burst_state}"
+
+  get_burst_state:
+    type: "read"
+    group: "Burst"
+    description: "Query burst mode state."
+    command: "SOUR:BURS:STAT?"
+    response:
+      type: "bool"
+
+  set_burst_count:
+    type: "write"
+    group: "Burst"
+    description: "Set burst cycle count."
+    command: "SOUR:BURS:NCYC {burst_count}"
+
+  get_burst_count:
+    type: "read"
+    group: "Burst"
+    description: "Query burst cycle count."
+    command: "SOUR:BURS:NCYC?"
+    response:
+      type: "int"
+
+  # --- Sweep ---
+  set_sweep_state:
+    type: "write"
+    group: "Sweep"
+    description: "Enable or disable frequency sweep."
+    command: "SOUR:SWE:STAT {sweep_state}"
+
+  get_sweep_state:
+    type: "read"
+    group: "Sweep"
+    description: "Query sweep state."
+    command: "SOUR:SWE:STAT?"
+    response:
+      type: "bool"
+
+  # --- System ---
+  reset:
+    type: "write"
+    description: "Reset to power-on defaults."
+    command: "*RST"
+
+  error_query:
+    type: "read"
+    description: "Read error from SCPI queue."
+    command: "SYST:ERR?"
+    response:
+      type: "tuple"
+      fields:
+        - name: "code"
+          type: "int"
+          description: "Error code"
+        - name: "message"
+          type: "enum"
+          description: "Error description"

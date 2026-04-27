@@ -1,0 +1,187 @@
+# Profile for the CARBON PSU6300 virtual power supply.
+apiVersion: v1alpha1
+
+identity:
+  manufacturer: "CARBON"
+  model: "PSU6300"
+
+metadata:
+  description: "Carbon PSU6300 3-channel virtual programmable DC power supply."
+  io:
+    - type: "binding-post"
+      direction: "output"
+      count: 3
+      description: "DC output channels (CH1-CH3)"
+
+connection:
+  terminator: "\n"
+  delimiter: ","
+  separator: ";"
+  bus:
+    - type: "lan"
+      defaultPort: 5027
+      timeout: 5000
+
+variables:
+  psu_channel:
+    description: "Power supply output channel"
+    type: "enum"
+    options:
+      - value: "1"
+        description: "Channel 1"
+      - value: "2"
+        description: "Channel 2"
+      - value: "3"
+        description: "Channel 3"
+    default: "1"
+  voltage:
+    description: "Output voltage level"
+    type: "float"
+    range: { min: 0, max: 30 }
+    default: 0
+  current_limit:
+    description: "Output current limit"
+    type: "float"
+    range: { min: 0, max: 5 }
+    default: 1
+  ovp_level:
+    description: "Over-voltage protection threshold"
+    type: "float"
+    range: { min: 0, max: 33 }
+    default: 33
+  output_state:
+    description: "Channel output state"
+    type: "bool"
+    default: false
+
+commands:
+  # --- Channel Selection ---
+  set_channel:
+    type: "write"
+    group: "Channel"
+    description: "Select active channel."
+    command: "INST:NSEL {psu_channel}"
+
+  get_channel:
+    type: "read"
+    group: "Channel"
+    description: "Query selected channel."
+    command: "INST:NSEL?"
+    response:
+      type: "int"
+
+  # --- Voltage ---
+  set_voltage:
+    type: "write"
+    group: "Source"
+    description: "Set output voltage."
+    command: "SOUR:VOLT {voltage}"
+
+  get_voltage:
+    type: "read"
+    group: "Source"
+    description: "Query programmed voltage."
+    command: "SOUR:VOLT?"
+    response:
+      type: "float"
+      unit: "V"
+
+  # --- Current ---
+  set_current_limit:
+    type: "write"
+    group: "Source"
+    description: "Set output current limit."
+    command: "SOUR:CURR {current_limit}"
+
+  get_current_limit:
+    type: "read"
+    group: "Source"
+    description: "Query programmed current limit."
+    command: "SOUR:CURR?"
+    response:
+      type: "float"
+      unit: "A"
+
+  # --- Protection ---
+  set_ovp:
+    type: "write"
+    group: "Protection"
+    description: "Set over-voltage protection level."
+    command: "SOUR:VOLT:PROT {ovp_level}"
+
+  get_ovp:
+    type: "read"
+    group: "Protection"
+    description: "Query over-voltage protection level."
+    command: "SOUR:VOLT:PROT?"
+    response:
+      type: "float"
+      unit: "V"
+
+  # --- Output ---
+  set_output:
+    type: "write"
+    group: "Output"
+    description: "Enable or disable channel output."
+    command: "OUTP {output_state}"
+
+  get_output:
+    type: "read"
+    group: "Output"
+    description: "Query channel output state."
+    command: "OUTP?"
+    response:
+      type: "bool"
+
+  set_output_all:
+    type: "write"
+    group: "Output"
+    description: "Enable or disable all channel outputs."
+    command: "OUTP:GEN {output_state}"
+
+  get_output_all:
+    type: "read"
+    group: "Output"
+    description: "Query global output state."
+    command: "OUTP:GEN?"
+    response:
+      type: "bool"
+
+  # --- Measurement ---
+  measure_voltage:
+    type: "read"
+    group: "Measure"
+    description: "Measure actual output voltage."
+    command: "MEAS:VOLT?"
+    response:
+      type: "float"
+      unit: "V"
+
+  measure_current:
+    type: "read"
+    group: "Measure"
+    description: "Measure actual output current."
+    command: "MEAS:CURR?"
+    response:
+      type: "float"
+      unit: "A"
+
+  # --- System ---
+  reset:
+    type: "write"
+    description: "Reset to power-on defaults."
+    command: "*RST"
+
+  error_query:
+    type: "read"
+    description: "Read error from SCPI queue."
+    command: "SYST:ERR?"
+    response:
+      type: "tuple"
+      fields:
+        - name: "code"
+          type: "int"
+          description: "Error code"
+        - name: "message"
+          type: "enum"
+          description: "Error description"

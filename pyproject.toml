@@ -1,0 +1,28 @@
+[project]
+name = "hislip-python-sdk"
+version = "0.1.0"
+description = "Python SDK for building HiSLIP (IVI-6.1) virtual instruments"
+requires-python = ">=3.12"
+license = "MIT"
+readme = "README.md"
+dependencies = []
+
+[project.optional-dependencies]
+mdns = [
+    "zeroconf>=0.131",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+    "zeroconf>=0.131",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hislip_instruments"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

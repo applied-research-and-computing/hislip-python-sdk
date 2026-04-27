@@ -1,0 +1,416 @@
+# Profile for the CARBON DSO4000 virtual oscilloscope.
+apiVersion: v1alpha1
+
+identity:
+  manufacturer: "CARBON"
+  model: "DSO4000"
+
+metadata:
+  description: "Carbon DSO4000 4-channel virtual digital oscilloscope."
+  io:
+    - type: "bnc"
+      direction: "input"
+      count: 4
+      description: "Analog input channels (CH1-CH4)"
+    - type: "bnc"
+      direction: "input"
+      count: 1
+      description: "External trigger input"
+
+connection:
+  terminator: "\n"
+  delimiter: ","
+  separator: ";"
+  bus:
+    - type: "lan"
+      defaultPort: 4880
+      timeout: 5000
+
+variables:
+  channel:
+    description: "Oscilloscope input channel"
+    type: "enum"
+    options:
+      - value: "CHAN1"
+        description: "Channel 1"
+      - value: "CHAN2"
+        description: "Channel 2"
+      - value: "CHAN3"
+        description: "Channel 3"
+      - value: "CHAN4"
+        description: "Channel 4"
+    default: "CHAN1"
+  v_scale:
+    description: "Vertical scale in V/div"
+    type: "float"
+    range: { min: 0.001, max: 100 }
+    default: 1.0
+  v_offset:
+    description: "Vertical offset in volts"
+    type: "float"
+    range: { min: -1000, max: 1000 }
+    default: 0
+  coupling:
+    description: "Input coupling mode"
+    type: "enum"
+    options:
+      - value: "DC"
+        description: "DC coupling"
+      - value: "AC"
+        description: "AC coupling"
+      - value: "GND"
+        description: "Ground reference"
+    default: "DC"
+  bw_limit:
+    description: "20 MHz bandwidth limit"
+    type: "bool"
+    default: false
+  t_scale:
+    description: "Timebase scale in s/div"
+    type: "float"
+    range: { min: 0.000000002, max: 50 }
+    default: 0.001
+  t_position:
+    description: "Timebase horizontal position in seconds"
+    type: "float"
+    range: { min: -50, max: 50 }
+    default: 0
+  trig_source:
+    description: "Trigger source"
+    type: "enum"
+    options:
+      - value: "CH1"
+        description: "Channel 1"
+      - value: "CH2"
+        description: "Channel 2"
+      - value: "CH3"
+        description: "Channel 3"
+      - value: "CH4"
+        description: "Channel 4"
+    default: "CH1"
+  trig_level:
+    description: "Trigger threshold voltage"
+    type: "float"
+    range: { min: -1000, max: 1000 }
+    default: 0
+  trig_slope:
+    description: "Trigger edge slope"
+    type: "enum"
+    options:
+      - value: "POS"
+        description: "Rising edge"
+      - value: "NEG"
+        description: "Falling edge"
+      - value: "EITH"
+        description: "Either edge"
+    default: "POS"
+  acq_type:
+    description: "Acquisition mode"
+    type: "enum"
+    options:
+      - value: "NORMAL"
+        description: "Normal acquisition"
+      - value: "AVERAGE"
+        description: "Averaged acquisition"
+      - value: "PEAK"
+        description: "Peak detection"
+      - value: "HRESOLUTION"
+        description: "High resolution"
+    default: "NORMAL"
+  acq_count:
+    description: "Acquisition averaging count"
+    type: "int"
+    range: { min: 1, max: 65536 }
+    default: 1
+
+commands:
+  # --- Channel: Display ---
+  set_display:
+    type: "write"
+    group: "Channel"
+    description: "Enable or disable channel display."
+    command: ":{channel}:DISP {bw_limit}"
+
+  get_display:
+    type: "read"
+    group: "Channel"
+    description: "Query channel display state."
+    command: ":{channel}:DISP?"
+    response:
+      type: "bool"
+
+  # --- Channel: Scale ---
+  set_scale:
+    type: "write"
+    group: "Channel"
+    description: "Set vertical scale."
+    command: ":{channel}:SCAL {v_scale}"
+
+  get_scale:
+    type: "read"
+    group: "Channel"
+    description: "Query vertical scale."
+    command: ":{channel}:SCAL?"
+    response:
+      type: "float"
+      unit: "V/div"
+
+  # --- Channel: Offset ---
+  set_offset:
+    type: "write"
+    group: "Channel"
+    description: "Set vertical offset."
+    command: ":{channel}:OFFS {v_offset}"
+
+  get_offset:
+    type: "read"
+    group: "Channel"
+    description: "Query vertical offset."
+    command: ":{channel}:OFFS?"
+    response:
+      type: "float"
+      unit: "V"
+
+  # --- Channel: Coupling ---
+  set_coupling:
+    type: "write"
+    group: "Channel"
+    description: "Set input coupling mode."
+    command: ":{channel}:COUP {coupling}"
+
+  get_coupling:
+    type: "read"
+    group: "Channel"
+    description: "Query input coupling mode."
+    command: ":{channel}:COUP?"
+    response:
+      type: "enum"
+
+  # --- Channel: Bandwidth Limit ---
+  set_bw_limit:
+    type: "write"
+    group: "Channel"
+    description: "Enable or disable 20 MHz bandwidth limit."
+    command: ":{channel}:BWLIM {bw_limit}"
+
+  get_bw_limit:
+    type: "read"
+    group: "Channel"
+    description: "Query bandwidth limit state."
+    command: ":{channel}:BWLIM?"
+    response:
+      type: "bool"
+
+  # --- Timebase ---
+  set_timebase_scale:
+    type: "write"
+    group: "Timebase"
+    description: "Set timebase scale."
+    command: ":TIM:SCAL {t_scale}"
+
+  get_timebase_scale:
+    type: "read"
+    group: "Timebase"
+    description: "Query timebase scale."
+    command: ":TIM:SCAL?"
+    response:
+      type: "float"
+      unit: "s/div"
+
+  set_timebase_position:
+    type: "write"
+    group: "Timebase"
+    description: "Set horizontal position."
+    command: ":TIM:POS {t_position}"
+
+  get_timebase_position:
+    type: "read"
+    group: "Timebase"
+    description: "Query horizontal position."
+    command: ":TIM:POS?"
+    response:
+      type: "float"
+      unit: "s"
+
+  # --- Trigger ---
+  set_trigger_source:
+    type: "write"
+    group: "Trigger"
+    description: "Set trigger source channel."
+    command: ":TRIG:SOUR {trig_source}"
+
+  get_trigger_source:
+    type: "read"
+    group: "Trigger"
+    description: "Query trigger source."
+    command: ":TRIG:SOUR?"
+    response:
+      type: "enum"
+
+  set_trigger_level:
+    type: "write"
+    group: "Trigger"
+    description: "Set trigger threshold voltage."
+    command: ":TRIG:LEV {trig_level}"
+
+  get_trigger_level:
+    type: "read"
+    group: "Trigger"
+    description: "Query trigger level."
+    command: ":TRIG:LEV?"
+    response:
+      type: "float"
+      unit: "V"
+
+  set_trigger_slope:
+    type: "write"
+    group: "Trigger"
+    description: "Set trigger edge slope."
+    command: ":TRIG:SLOP {trig_slope}"
+
+  get_trigger_slope:
+    type: "read"
+    group: "Trigger"
+    description: "Query trigger slope."
+    command: ":TRIG:SLOP?"
+    response:
+      type: "enum"
+
+  # --- Acquisition ---
+  set_acq_type:
+    type: "write"
+    group: "Acquisition"
+    description: "Set acquisition mode."
+    command: ":ACQ:TYPE {acq_type}"
+
+  get_acq_type:
+    type: "read"
+    group: "Acquisition"
+    description: "Query acquisition mode."
+    command: ":ACQ:TYPE?"
+    response:
+      type: "enum"
+
+  set_acq_count:
+    type: "write"
+    group: "Acquisition"
+    description: "Set averaging count."
+    command: ":ACQ:COUN {acq_count}"
+
+  get_acq_count:
+    type: "read"
+    group: "Acquisition"
+    description: "Query averaging count."
+    command: ":ACQ:COUN?"
+    response:
+      type: "int"
+
+  # --- Measurement ---
+  set_measure_source:
+    type: "write"
+    group: "Measure"
+    description: "Set measurement source channel."
+    command: ":MEAS:SOUR {channel}"
+
+  get_measure_source:
+    type: "read"
+    group: "Measure"
+    description: "Query measurement source."
+    command: ":MEAS:SOUR?"
+    response:
+      type: "enum"
+
+  measure_frequency:
+    type: "read"
+    group: "Measure"
+    description: "Measure signal frequency."
+    command: ":MEAS:FREQ?"
+    response:
+      type: "float"
+      unit: "Hz"
+
+  measure_vpp:
+    type: "read"
+    group: "Measure"
+    description: "Measure peak-to-peak voltage."
+    command: ":MEAS:VPP?"
+    response:
+      type: "float"
+      unit: "V"
+
+  measure_vmax:
+    type: "read"
+    group: "Measure"
+    description: "Measure maximum voltage."
+    command: ":MEAS:VMAX?"
+    response:
+      type: "float"
+      unit: "V"
+
+  measure_vmin:
+    type: "read"
+    group: "Measure"
+    description: "Measure minimum voltage."
+    command: ":MEAS:VMIN?"
+    response:
+      type: "float"
+      unit: "V"
+
+  measure_vrms:
+    type: "read"
+    group: "Measure"
+    description: "Measure RMS voltage."
+    command: ":MEAS:VRMS?"
+    response:
+      type: "float"
+      unit: "V"
+
+  # --- Run Control ---
+  run:
+    type: "write"
+    group: "Acquisition"
+    description: "Start continuous acquisition."
+    command: ":RUN"
+
+  stop:
+    type: "write"
+    group: "Acquisition"
+    description: "Stop acquisition."
+    command: ":STOP"
+
+  single:
+    type: "write"
+    group: "Acquisition"
+    description: "Capture one waveform then stop."
+    command: ":SING"
+
+  # --- Waveform ---
+  waveform_data:
+    type: "read"
+    group: "Waveform"
+    description: "Transfer waveform data from selected channel."
+    command: ":WAV:DATA?"
+    response:
+      type: "array"
+      items: "float"
+    timeout: 30000
+
+  # --- System ---
+  reset:
+    type: "write"
+    description: "Reset to power-on defaults."
+    command: "*RST"
+
+  error_query:
+    type: "read"
+    description: "Read error from SCPI queue."
+    command: ":SYST:ERR?"
+    response:
+      type: "tuple"
+      fields:
+        - name: "code"
+          type: "int"
+          description: "Error code"
+        - name: "message"
+          type: "enum"
+          description: "Error description"
