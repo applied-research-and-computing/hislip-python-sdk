@@ -243,9 +243,9 @@ class TestSubclassing:
                 return f"{self._power:.1f}W"
 
             def _set_power(self, cmd):
-                parts = cmd.split()
-                if len(parts) == 2:
-                    self._power = float(parts[1])
+                val = cmd.arg(0, float)
+                if val is not None:
+                    self._power = val
                 return None
 
         laser = WeirdLaser()

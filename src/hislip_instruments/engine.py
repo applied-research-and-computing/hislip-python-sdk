@@ -1,8 +1,8 @@
-"""Command processing engine for virtual instruments.
+"""SCPI command processing engine.
 
-The CommandEngine is the core of every virtual instrument. It processes
-string commands and returns string responses. It knows nothing about
-protocols or transport — those are handled by Protocol classes.
+The CommandEngine processes string commands and returns string responses.
+It knows nothing about protocols or transport — those are handled by
+Protocol classes.
 
 IEEE 488.2 and SCPI support is opt-in via the `ieee488` flag. Instruments
 with proprietary command sets can skip it entirely and register their
@@ -14,9 +14,11 @@ from __future__ import annotations
 import threading
 from typing import Callable
 
+from .command import SCPICommand
+
 
 class CommandEngine:
-    """Generic string command processor for virtual instruments.
+    """SCPI command processor.
 
     At its core: string in, string out. Commands are dispatched to
     registered handlers by prefix matching. A built-in property store
@@ -43,7 +45,7 @@ class CommandEngine:
         self.firmware = firmware
         self.command_separator = command_separator
 
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         # IEEE 488.2 status model (only meaningful when ieee488=True,
         # but always available so protocols can read STB regardless)
@@ -54,12 +56,15 @@ class CommandEngine:
         self._opc: bool = False
         self._srq_pending: bool = False
 
+        # SRQ callback — invoked (outside lock) when generate_srq() fires
+        self._srq_callback: Callable[[], None] | None = None
+
         # Key/value property store — handlers can read/write these
         self._properties: dict[str, str] = {}
 
-        # Command handlers: prefix -> callable(command_string) -> response | None
+        # Command handlers: prefix -> callable(SCPICommand) -> response | None
         # Checked in registration order; first match wins.
-        self._handlers: list[tuple[str, Callable[[str], str | None]]] = []
+        self._handlers: list[tuple[str, Callable[[SCPICommand], str | None]]] = []
 
         # Reset hooks — callables invoked by *RST after engine state is cleared.
         # Instruments register hooks here to reset their own state.
@@ -106,32 +111,33 @@ class CommandEngine:
 
         Returns response string or None for non-query commands.
         """
-        command = command.strip()
-        if not command:
-            return None
+        with self._lock:
+            command = command.strip()
+            if not command:
+                return None
 
-        if self.command_separator:
-            commands = [cmd.strip() for cmd in command.split(self.command_separator)]
-        else:
-            commands = [command]
+            if self.command_separator:
+                commands = [cmd.strip() for cmd in command.split(self.command_separator)]
+            else:
+                commands = [command]
 
-        responses = []
-        for cmd in commands:
-            if cmd:
-                resp = self._dispatch(cmd)
-                if resp is not None:
-                    responses.append(resp)
+            responses = []
+            for cmd in commands:
+                if cmd:
+                    resp = self._dispatch(cmd)
+                    if resp is not None:
+                        responses.append(resp)
 
-        return ";".join(responses) if responses else None
+            return ";".join(responses) if responses else None
 
     def register_handler(
-        self, prefix: str, handler: Callable[[str], str | None]
+        self, prefix: str, handler: Callable[[SCPICommand], str | None]
     ):
         """Register a command handler.
 
         The handler is called when a command starts with the given prefix
-        (case-insensitive). It receives the full command string and should
-        return a response string or None.
+        (case-insensitive). It receives an :class:`SCPICommand` with the
+        parsed command and should return a response string or None.
 
         When multiple handlers match, the longest prefix wins. This means
         a specific handler like "MEAS:VOLT?" always beats a general one
@@ -149,15 +155,25 @@ class CommandEngine:
 
     def read_stb(self) -> int:
         """Read status byte (used by protocols for serial poll / viReadSTB)."""
-        stb = self._get_stb()
-        self._srq_pending = False
-        self._stb &= ~0x40
-        return stb
+        with self._lock:
+            stb = self._get_stb()
+            self._srq_pending = False
+            self._stb &= ~0x40
+            return stb
 
     def generate_srq(self):
         """Generate a Service Request (set bit 6 of STB)."""
-        self._srq_pending = True
-        self._stb |= 0x40
+        with self._lock:
+            self._srq_pending = True
+            self._stb |= 0x40
+        # Invoke callback outside lock to avoid deadlocks
+        cb = self._srq_callback
+        if cb is not None:
+            cb()
+
+    def on_srq(self, callback: Callable[[], None] | None):
+        """Register a callback invoked when SRQ is generated."""
+        self._srq_callback = callback
 
     # -- Internal dispatch ---------------------------------------------------
 
@@ -184,24 +200,27 @@ class CommandEngine:
         upper = command.upper()
 
         best_handler = None
+        best_prefix = ""
         best_length = -1
         for prefix, handler in self._handlers:
             if upper.startswith(prefix) and len(prefix) > best_length:
                 best_handler = handler
+                best_prefix = prefix
                 best_length = len(prefix)
 
         if best_handler is not None:
-            return best_handler(command)
+            cmd = SCPICommand(command, best_prefix)
+            return best_handler(cmd)
 
         # Fallback: generic property get/set
         return self._handle_property(command)
 
     # -- IEEE 488.2 handlers -------------------------------------------------
 
-    def _handle_idn(self, _command: str) -> str:
+    def _handle_idn(self, _cmd: SCPICommand) -> str:
         return f"{self.manufacturer},{self.model},{self.serial},{self.firmware}"
 
-    def _handle_rst(self, _command: str) -> None:
+    def _handle_rst(self, _cmd: SCPICommand) -> None:
         # Per IEEE 488.2 section 10.32, *RST resets device-specific state
         # but must NOT clear the ESE or SRE enable registers.
         self._stb = 0
@@ -214,44 +233,42 @@ class CommandEngine:
             hook()
         return None
 
-    def _handle_cls(self, _command: str) -> None:
+    def _handle_cls(self, _cmd: SCPICommand) -> None:
         self._stb = 0
         self._esr = 0
         self._srq_pending = False
         return None
 
-    def _handle_stb_query(self, _command: str) -> str:
+    def _handle_stb_query(self, _cmd: SCPICommand) -> str:
         return str(self._get_stb())
 
-    def _handle_esr_query(self, _command: str) -> str:
+    def _handle_esr_query(self, _cmd: SCPICommand) -> str:
         val = self._esr
         self._esr = 0
         return str(val)
 
-    def _handle_ese(self, command: str) -> str | None:
-        upper = command.upper()
-        if "?" in upper:
+    def _handle_ese(self, cmd: SCPICommand) -> str | None:
+        if cmd.query:
             return str(self._ese)
-        val = self._parse_value(command)
+        val = cmd.arg(0, int)
         if val is not None:
-            self._ese = int(val) & 0xFF
+            self._ese = val & 0xFF
         return None
 
-    def _handle_sre(self, command: str) -> str | None:
-        upper = command.upper()
-        if "?" in upper:
+    def _handle_sre(self, cmd: SCPICommand) -> str | None:
+        if cmd.query:
             return str(self._sre)
-        val = self._parse_value(command)
+        val = cmd.arg(0, int)
         if val is not None:
-            self._sre = int(val) & 0xFF
+            self._sre = val & 0xFF
         return None
 
-    def _handle_opc(self, _command: str) -> None:
+    def _handle_opc(self, _cmd: SCPICommand) -> None:
         self._opc = True
         return None
 
-    def _handle_measure(self, command: str) -> str | None:
-        upper = command.upper().replace("MEASURE:", "MEAS:")
+    def _handle_measure(self, cmd: SCPICommand) -> str | None:
+        upper = cmd.raw.upper().replace("MEASURE:", "MEAS:")
         parts = upper.split(":")
         if len(parts) >= 2:
             meas_type = parts[1].split("?")[0].split(" ")[0]
@@ -288,9 +305,3 @@ class CommandEngine:
             stb |= 0x40
         return stb
 
-    @staticmethod
-    def _parse_value(command: str) -> str | None:
-        parts = command.split(None, 1)
-        if len(parts) == 2:
-            return parts[1].strip()
-        return None

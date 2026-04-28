@@ -1,6 +1,8 @@
 """Tests for CommandEngine — the core command processor."""
 
-import pytest
+import threading
+
+from hislip_instruments.command import SCPICommand
 from hislip_instruments.engine import CommandEngine
 
 
@@ -197,12 +199,14 @@ class TestCustomHandlers:
         engine.register_handler("HELLO", lambda cmd: "WORLD")
         assert engine.process_command("HELLO") == "WORLD"
 
-    def test_handler_receives_full_command(self):
+    def test_handler_receives_scpi_command(self):
         engine = CommandEngine(ieee488=False)
         received = []
         engine.register_handler("SET", lambda cmd: (received.append(cmd), None)[1])
         engine.process_command("SET VALUE 42")
-        assert received[0] == "SET VALUE 42"
+        assert isinstance(received[0], SCPICommand)
+        assert received[0].raw == "SET VALUE 42"
+        assert received[0].prefix == "SET"
 
     def test_prefix_matching(self):
         engine = CommandEngine(ieee488=False)
@@ -314,3 +318,67 @@ class TestStatusRegisters:
         assert engine.process_command("*SRE?") == "255"
         # But STB and SRQ are cleared
         assert engine.read_stb() == 0
+
+
+class TestThreadSafety:
+    """Thread safety of CommandEngine operations."""
+
+    def test_concurrent_process_command(self):
+        """Multiple threads hitting process_command simultaneously should not crash."""
+        engine = CommandEngine()
+        errors = []
+
+        def worker(thread_id):
+            try:
+                for i in range(50):
+                    result = engine.process_command("*IDN?")
+                    assert result is not None
+                    assert "MOCK" in result
+                    engine.process_command("*RST")
+                    engine.process_command(f"VOLT {thread_id}.{i}")
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert errors == [], f"Thread errors: {errors}"
+
+    def test_srq_callback_invoked(self):
+        """Registering an SRQ callback should fire it on generate_srq()."""
+        engine = CommandEngine()
+        called = threading.Event()
+        engine.on_srq(lambda: called.set())
+        engine.generate_srq()
+        assert called.is_set()
+
+    def test_srq_callback_none(self):
+        """Setting SRQ callback to None should not crash on generate_srq()."""
+        engine = CommandEngine()
+        engine.on_srq(None)
+        engine.generate_srq()  # Should not raise
+
+    def test_concurrent_read_stb(self):
+        """Multiple threads reading STB simultaneously should not crash."""
+        engine = CommandEngine()
+        errors = []
+
+        def worker():
+            try:
+                for _ in range(100):
+                    engine.generate_srq()
+                    stb = engine.read_stb()
+                    assert isinstance(stb, int)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert errors == [], f"Thread errors: {errors}"

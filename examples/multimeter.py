@@ -111,70 +111,69 @@ class VirtualDMM(InstrumentBase):
         except ValueError:
             return prop
 
-    def _handle_read(self, _command: str) -> str:
+    def _handle_read(self, _cmd) -> str:
         return self._reading()
 
-    def _configure_voltage(self, command: str) -> str | None:
-        if "?" in command:
+    def _configure_voltage(self, cmd) -> str | None:
+        if cmd.query:
             return f"VOLT {self._range}"
         self._function = "VOLT"
-        self._parse_range(command)
+        rng = cmd.arg(0)
+        if rng is not None:
+            self._range = rng.upper()
         return None
 
-    def _configure_current(self, command: str) -> str | None:
-        if "?" in command:
+    def _configure_current(self, cmd) -> str | None:
+        if cmd.query:
             return f"CURR {self._range}"
         self._function = "CURR"
-        self._parse_range(command)
+        rng = cmd.arg(0)
+        if rng is not None:
+            self._range = rng.upper()
         return None
 
-    def _configure_resistance(self, command: str) -> str | None:
-        if "?" in command:
+    def _configure_resistance(self, cmd) -> str | None:
+        if cmd.query:
             return f"RES {self._range}"
         self._function = "RES"
-        self._parse_range(command)
+        rng = cmd.arg(0)
+        if rng is not None:
+            self._range = rng.upper()
         return None
 
-    def _configure_frequency(self, command: str) -> str | None:
-        if "?" in command:
+    def _configure_frequency(self, cmd) -> str | None:
+        if cmd.query:
             return f"FREQ {self._range}"
         self._function = "FREQ"
-        self._parse_range(command)
+        rng = cmd.arg(0)
+        if rng is not None:
+            self._range = rng.upper()
         return None
 
-    def _parse_range(self, command: str):
-        parts = command.split()
-        if len(parts) > 1:
-            self._range = parts[-1].upper()
-
-    def _handle_impedance_auto(self, command: str) -> str | None:
-        if "?" in command.upper():
+    def _handle_impedance_auto(self, cmd) -> str | None:
+        if cmd.query:
             return "1" if self._impedance_auto else "0"
-        parts = command.strip().upper().split()
-        value = parts[-1] if parts else ""
-        self._impedance_auto = value in ("ON", "1")
+        value = cmd.arg(0, str, "")
+        self._impedance_auto = value.upper() in ("ON", "1")
         return None
 
-    def _handle_nplc(self, command: str) -> str | None:
-        if "?" in command:
+    def _handle_nplc(self, cmd) -> str | None:
+        if cmd.query:
             return str(self._nplc)
-        parts = command.split()
-        if len(parts) > 1:
-            try:
-                self._nplc = float(parts[-1])
-            except ValueError:
-                pass
+        val = cmd.arg(0, float)
+        if val is not None:
+            self._nplc = val
         return None
 
-    def _handle_range(self, command: str) -> str | None:
-        if "?" in command:
+    def _handle_range(self, cmd) -> str | None:
+        if cmd.query:
             return self._range
-        parts = command.split()
-        if len(parts) > 1:
-            self._range = parts[-1].upper()
+        rng = cmd.arg(0)
+        if rng is not None:
+            self._range = rng.upper()
         return None
 
-    def _handle_func_query(self, _command: str) -> str:
+    def _handle_func_query(self, _cmd) -> str:
         return self._function
 
 

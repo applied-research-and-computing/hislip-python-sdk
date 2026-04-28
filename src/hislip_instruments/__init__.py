@@ -1,35 +1,35 @@
-"""HiSLIP instrument framework.
+"""Python SDK for building HiSLIP (IVI-6.1) instrument servers.
 
-Build simulated test instruments that speak HiSLIP (IVI-6.1) and can
-be wired together through signal ports to simulate complete test setups.
+Build SCPI instrument servers that speak HiSLIP over TCP. Bring your
+own command handlers — the SDK handles the wire protocol.
 
-Quick start:
-    from hislip_instruments import InstrumentBase, HiSLIPProtocol, Signal
+Quick start::
 
-    class VirtualDMM(InstrumentBase):
-        def __init__(self, **kwargs):
-            super().__init__(manufacturer="KEYSIGHT", model="34461A", **kwargs)
-            self.add_input("INPUT")
+    from hislip_instruments import HiSLIPServer
 
-        def on_input_changed(self, port_name, signal):
-            if port_name == "INPUT":
-                self.engine.set_property("VOLT", f"{signal.value:.5E}")
+    server = HiSLIPServer(manufacturer="ACME", model="DMM100", port=4880)
 
-    dmm = VirtualDMM(protocols=[HiSLIPProtocol()])
-    dmm.start()
+    @server.command("READ?")
+    def read_measurement(cmd):
+        return str(get_reading())
+
+    server.run()
 """
 
+from .command import SCPICommand
 from .engine import CommandEngine
 from .instrument import InstrumentBase
 from .ports import InputPort, OutputPort, Signal
-from .protocol import HiSLIPProtocol, Protocol
+from .protocol import HiSLIPProtocol, HiSLIPServer, Protocol
 
 __all__ = [
     "CommandEngine",
     "HiSLIPProtocol",
+    "HiSLIPServer",
     "InstrumentBase",
     "InputPort",
     "OutputPort",
     "Protocol",
+    "SCPICommand",
     "Signal",
 ]
